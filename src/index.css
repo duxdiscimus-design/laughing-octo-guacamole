@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg: #0f0f11;
+  --color-surface: #1a1a1f;
+  --color-accent: #f5c842;
+  --color-text-primary: #e8e8ee;
+  --color-text-muted: #6b7280;
+  --color-border: #2a2a32;
+
+  --color-task-LOD: #f5c842;
+  --color-task-Cashier: #3b82f6;
+  --color-task-Planning: #8b5cf6;
+  --color-task-ConfCall: #14b8a6;
+  --color-task-Floor: #22c55e;
+  --color-task-Open: #f97316;
+  --color-task-Close: #ef4444;
+  --color-task-Lunch: #6b7280;
+  --color-task-CashOffice: #ec4899;
+  --color-task-Custom: #6366f1;
+  --color-task-ApprovedOff: #2a2a32;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
