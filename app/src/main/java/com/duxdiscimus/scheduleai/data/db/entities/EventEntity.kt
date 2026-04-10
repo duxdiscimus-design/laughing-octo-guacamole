@@ -6,7 +6,9 @@ import com.duxdiscimus.scheduleai.domain.model.Event
 import com.duxdiscimus.scheduleai.domain.model.Priority
 import com.duxdiscimus.scheduleai.domain.model.Recurrence
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 
 @Entity(tableName = "events")
 data class EventEntity(
@@ -32,19 +34,20 @@ data class EventEntity(
     val updatedAt: Long = System.currentTimeMillis()
 ) {
     fun toDomain(categoryName: String = "Other", categoryColor: Int = 0xFF90A4AE.toInt()): Event {
+        val zoneId = ZoneId.systemDefault()
         return Event(
             id = id,
             title = title,
             description = description,
-            startTime = LocalDateTime.ofEpochSecond(startTimeEpoch, 0, java.time.ZoneOffset.UTC),
-            endTime = LocalDateTime.ofEpochSecond(endTimeEpoch, 0, java.time.ZoneOffset.UTC),
+            startTime = Instant.ofEpochSecond(startTimeEpoch).atZone(zoneId).toLocalDateTime(),
+            endTime = Instant.ofEpochSecond(endTimeEpoch).atZone(zoneId).toLocalDateTime(),
             categoryId = categoryId,
             categoryName = categoryName,
             categoryColor = categoryColor,
             priority = Priority.valueOf(priority),
             recurrence = Recurrence.valueOf(recurrence),
-            recurrenceEndDate = recurrenceEndDateEpoch?.let {
-                LocalDateTime.ofEpochSecond(it, 0, java.time.ZoneOffset.UTC)
+            recurrenceEndDate = recurrenceEndDateEpoch?.let { epochSec ->
+                Instant.ofEpochSecond(epochSec).atZone(zoneId).toLocalDateTime()
             },
             recurrenceDays = recurrenceDays.split(",")
                 .filter { it.isNotBlank() }
@@ -62,16 +65,17 @@ data class EventEntity(
 
     companion object {
         fun fromDomain(event: Event): EventEntity {
+            val zoneId = ZoneId.systemDefault()
             return EventEntity(
                 id = event.id,
                 title = event.title,
                 description = event.description,
-                startTimeEpoch = event.startTime.toEpochSecond(java.time.ZoneOffset.UTC),
-                endTimeEpoch = event.endTime.toEpochSecond(java.time.ZoneOffset.UTC),
+                startTimeEpoch = event.startTime.atZone(zoneId).toEpochSecond(),
+                endTimeEpoch = event.endTime.atZone(zoneId).toEpochSecond(),
                 categoryId = event.categoryId,
                 priority = event.priority.name,
                 recurrence = event.recurrence.name,
-                recurrenceEndDateEpoch = event.recurrenceEndDate?.toEpochSecond(java.time.ZoneOffset.UTC),
+                recurrenceEndDateEpoch = event.recurrenceEndDate?.atZone(zoneId)?.toEpochSecond(),
                 recurrenceDays = event.recurrenceDays.joinToString(",") { it.name },
                 reminderMinutes = event.reminderMinutes,
                 location = event.location,

@@ -494,6 +494,7 @@ fun WelcomeContent(
 
 @Composable
 fun ModelNotFoundBanner(onRetry: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -519,7 +520,7 @@ fun ModelNotFoundBanner(onRetry: () -> Unit) {
             Spacer(Modifier.height(8.dp))
             Text(
                 "To enable on-device AI, place a Gemma model file in:\n" +
-                "/Android/data/com.duxdiscimus.scheduleai/files/models/\n\n" +
+                "/Android/data/${context.packageName}/files/models/\n\n" +
                 "Recommended: gemma3-4b-it-int4.bin (Pixel 10 Pro)\n" +
                 "Download from: kaggle.com/models/google/gemma",
                 style = MaterialTheme.typography.bodySmall

@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import java.time.LocalDateTime
-import java.time.ZoneOffset
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 @Singleton
@@ -31,10 +31,11 @@ class EventRepository @Inject constructor(
     }
 
     fun getEventsBetween(start: LocalDateTime, end: LocalDateTime): Flow<List<Event>> {
+        val zoneId = ZoneId.systemDefault()
         return combine(
             eventDao.getEventsBetween(
-                start.toEpochSecond(ZoneOffset.UTC),
-                end.toEpochSecond(ZoneOffset.UTC)
+                start.atZone(zoneId).toEpochSecond(),
+                end.atZone(zoneId).toEpochSecond()
             ),
             categoryDao.getAllCategories()
         ) { events, categories ->
@@ -47,8 +48,9 @@ class EventRepository @Inject constructor(
     }
 
     fun getUpcomingEvents(from: LocalDateTime = LocalDateTime.now()): Flow<List<Event>> {
+        val zoneId = ZoneId.systemDefault()
         return combine(
-            eventDao.getUpcomingEvents(from.toEpochSecond(ZoneOffset.UTC)),
+            eventDao.getUpcomingEvents(from.atZone(zoneId).toEpochSecond()),
             categoryDao.getAllCategories()
         ) { events, categories ->
             val categoryMap = categories.associate { it.id to Pair(it.name, it.color) }
@@ -107,8 +109,9 @@ class EventRepository @Inject constructor(
     }
 
     suspend fun getEventsForDay(date: LocalDateTime): List<Event> {
-        val dayStart = date.toLocalDate().atStartOfDay().toEpochSecond(ZoneOffset.UTC)
-        val dayEnd = date.toLocalDate().plusDays(1).atStartOfDay().toEpochSecond(ZoneOffset.UTC)
+        val zoneId = ZoneId.systemDefault()
+        val dayStart = date.toLocalDate().atStartOfDay(zoneId).toEpochSecond()
+        val dayEnd = date.toLocalDate().plusDays(1).atStartOfDay(zoneId).toEpochSecond()
         return eventDao.getEventsForDay(dayStart, dayEnd).map { entity ->
             val category = categoryDao.getCategoryById(entity.categoryId)
             entity.toDomain(

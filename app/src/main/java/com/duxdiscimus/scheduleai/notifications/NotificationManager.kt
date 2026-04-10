@@ -5,15 +5,13 @@ import android.app.NotificationChannel
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.duxdiscimus.scheduleai.MainActivity
 import com.duxdiscimus.scheduleai.R
 import com.duxdiscimus.scheduleai.domain.model.Event
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.time.LocalDateTime
-import java.time.ZoneOffset
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -55,7 +53,7 @@ class NotificationManager @Inject constructor(
         if (event.reminderMinutes <= 0) return
 
         val reminderTime = event.startTime.minusMinutes(event.reminderMinutes.toLong())
-        val reminderEpochMs = reminderTime.toInstant(ZoneOffset.UTC).toEpochMilli()
+        val reminderEpochMs = reminderTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
         if (reminderEpochMs <= System.currentTimeMillis()) return
 
