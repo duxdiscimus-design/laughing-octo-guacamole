@@ -30,7 +30,7 @@ export default function Layout() {
   };
 
   /* Footer data */
-  const activeRules = Array.isArray(rules) ? rules.filter((r) => r.enabled !== false).length : 0;
+  const activeRules = Array.isArray(rules) ? rules.filter((r) => r.isOn === true).length : 0;
 
   const currentWeek = (() => {
     if (!rotationStart) return 1;
