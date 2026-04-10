@@ -1,7 +1,6 @@
 import React, { createContext, useContext } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { LS_KEYS } from '../constants';
-import ruleLibrary from '../data/ruleLibrary.json';
 
 export const DEFAULT_EMPLOYEES = [
   { id: '1', name: 'Store Manager', role: 'SM', targetHours: 45, shiftLength: 9, lunchMinutes: 60, lunchPaid: true, hourlyRate: 25, notes: '', planningHours: 20 },
@@ -23,7 +22,7 @@ export function AppStateProvider({ children }) {
   const [session, setSession] = useLocalStorage(LS_KEYS.SESSION, null);
   const [employees, setEmployees] = useLocalStorage(LS_KEYS.EMPLOYEES, DEFAULT_EMPLOYEES);
   const [schedule, setSchedule] = useLocalStorage(LS_KEYS.SCHEDULE, {});
-  const [rules, setRules] = useLocalStorage(LS_KEYS.RULES, ruleLibrary);
+  const [rules, setRules] = useLocalStorage(LS_KEYS.RULES, []);
   const [ruleTemplates, setRuleTemplates] = useLocalStorage(LS_KEYS.RULE_TEMPLATES, []);
   const [rotationStart, setRotationStart] = useLocalStorage(LS_KEYS.ROTATION_START, null);
   const [laborBudget, setLaborBudget] = useLocalStorage(LS_KEYS.LABOR_BUDGET, { hours: 0, dollars: 0 });
