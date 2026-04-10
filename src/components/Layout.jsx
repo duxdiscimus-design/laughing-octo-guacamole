@@ -40,7 +40,7 @@ export default function Layout() {
     return Math.max(1, Math.min(4, (diff % 4) + 1));
   })();
 
-  /* Count violations — placeholder; other agents will populate */
+  // TODO: calculate real violations once schedule-validation logic is implemented
   const violations = 0;
 
   return (
