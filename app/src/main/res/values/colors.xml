@@ -1,0 +1,17 @@
+<resources>
+    <!-- Material3 Dynamic Color seed -->
+    <color name="seed">#4A90D9</color>
+    <!-- Schedule category colors -->
+    <color name="category_work">#4A90D9</color>
+    <color name="category_personal">#7BC67E</color>
+    <color name="category_health">#F06292</color>
+    <color name="category_social">#FFB74D</color>
+    <color name="category_education">#9575CD</color>
+    <color name="category_travel">#4DB6AC</color>
+    <color name="category_other">#90A4AE</color>
+    <!-- Priority colors -->
+    <color name="priority_low">#66BB6A</color>
+    <color name="priority_medium">#FFA726</color>
+    <color name="priority_high">#EF5350</color>
+    <color name="priority_urgent">#B71C1C</color>
+</resources>

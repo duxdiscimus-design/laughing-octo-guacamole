@@ -1,0 +1,10 @@
+Place Gemma model files here for on-device AI inference.
+
+Supported models:
+- gemma3-4b-it-int4.bin (Recommended for Pixel 10 Pro)
+- gemma3-1b-it-int4.bin (Faster, smaller)
+- gemma-2b-it-gpu-int4.bin (GPU-accelerated)
+
+Download from: https://www.kaggle.com/models/google/gemma
+
+Copy to device: /Android/data/com.duxdiscimus.scheduleai/files/models/
