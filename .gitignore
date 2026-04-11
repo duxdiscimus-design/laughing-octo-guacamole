@@ -3,3 +3,9 @@ dist
 .env
 .env.local
 .env.production
+
+# Capacitor / Android generated files
+android/app/build/
+android/.gradle/
+android/build/
+android/local.properties

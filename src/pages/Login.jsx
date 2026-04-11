@@ -11,7 +11,7 @@ export default function Login() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (username === 'discimus' && password === 'Dux!') {
+    if (username === 'Discimus' && password === '8675309') {
       setSession({
         token: 'hft_auth_token',
         username,
