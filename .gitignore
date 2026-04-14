@@ -1,36 +1,19 @@
-# Build artifacts
-.gradle/
-build/
-app/build/
-.cxx/
-*.apk
-*.aab
-*.ap_
-*.class
-*.dex
-local.properties
+node_modules
+dist
+.env
+.env.local
+.env.production
 
-# Gradle wrapper (keep the jar and scripts)
-!gradle/wrapper/gradle-wrapper.jar
-!gradle/wrapper/gradle-wrapper.properties
-!gradlew
-!gradlew.bat
+# Capacitor / Android generated files
+android/app/build/
+android/.gradle/
+android/build/
+android/local.properties
 
 # IDE files
 .idea/
 *.iml
-*.iws
-*.ipr
 .DS_Store
-
-# Configuration cache
-.gradle/configuration-cache/
 
 # Kotlin build cache
 .kotlin/
-
-# Android model files (too large for git)
-app/src/main/assets/models/
-*/models/*.bin
-*/models/*.tflite
-*/models/*.task
