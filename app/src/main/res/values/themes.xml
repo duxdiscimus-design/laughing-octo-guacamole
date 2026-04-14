@@ -1,0 +1,8 @@
+<resources>
+    <style name="Theme.ScheduleAI" parent="Theme.Material3.DayNight.NoActionBar" />
+    <style name="Theme.ScheduleAI.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/seed</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.ScheduleAI</item>
+    </style>
+</resources>

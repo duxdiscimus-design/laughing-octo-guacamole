@@ -9,3 +9,11 @@ android/app/build/
 android/.gradle/
 android/build/
 android/local.properties
+
+# IDE files
+.idea/
+*.iml
+.DS_Store
+
+# Kotlin build cache
+.kotlin/
