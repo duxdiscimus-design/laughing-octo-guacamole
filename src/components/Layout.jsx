@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAppState } from '../hooks/useAppState';
 import { LS_KEYS } from '../constants';
+import AIAssistant from './AIAssistant';
 
 const NAV_ITEMS = [
   { path: '/schedule',  label: 'Schedule',  Icon: Calendar     },
@@ -160,6 +161,9 @@ export default function Layout() {
         <main className="flex-1 overflow-y-auto">
           <Outlet />
         </main>
+
+        {/* AI Assistant (floating) */}
+        <AIAssistant />
 
         {/* Footer */}
         <footer

@@ -805,13 +805,14 @@ export function checkViolations(rules, scheduleData, employees, rotation, extras
 }
 
 /**
- * Auto-optimize: apply rules sorted by priority tier, return optimized schedule
- * and lists of resolved/unresolved violations.
+ * Auto-optimize: check all violations against active rules, then attempt to
+ * resolve HARD violations by adjusting the schedule.
  *
- * Currently returns the schedule unchanged with all violations as unresolved
- * (full constraint-solving optimization is beyond scope of this engine layer).
+ * Returns { optimizedSchedule, resolved, unresolved } where optimizedSchedule
+ * is the mutated schedule with as many hard violations fixed as possible.
  */
 export function autoOptimize(schedule, rules, employees, rotation, extras = {}) {
+  // Sort rules by priority: High first
   const activeSorted = (rules ?? [])
     .filter(r => r.isOn)
     .sort((a, b) => {
@@ -819,12 +820,99 @@ export function autoOptimize(schedule, rules, employees, rotation, extras = {}) 
       return (order[a.priorityTier ?? 'Low'] ?? 2) - (order[b.priorityTier ?? 'Low'] ?? 2);
     });
 
-  const violations = checkViolations(activeSorted, schedule, employees, rotation, extras);
+  // Deep-clone schedule so we can mutate safely
+  const optimized = JSON.parse(JSON.stringify(schedule));
+
+  const resolved   = [];
+  const stillFail  = [];
+
+  // ─── Fix MAX_DAYS violations ──────────────────────────────────────────────
+  // For each employee over their max days, remove the last day(s).
+  for (const rule of activeSorted) {
+    if (rule.enforcementType !== 'MAX_DAYS') continue;
+    const { maxDaysPerWeek, roleFilter } = rule.parameters ?? {};
+    if (!maxDaysPerWeek) continue;
+
+    for (const weekStr of Object.keys(optimized)) {
+      const weekData = optimized[weekStr];
+      for (const empId of Object.keys(weekData)) {
+        if (roleFilter) {
+          const emp = employees.find(e => e.id === empId);
+          if (!emp) continue;
+          const roles = Array.isArray(roleFilter) ? roleFilter : String(roleFilter).split(',').map(r => r.trim());
+          if (roles.length && roles[0] !== 'Any' && !roles.includes(emp.role)) continue;
+        }
+        const empWeek = weekData[empId];
+        let daysWorked = Object.entries(empWeek)
+          .filter(([, d]) => d?.blocks?.some(b => b.type !== 'ApprovedOff'))
+          .map(([di]) => Number(di));
+
+        while (daysWorked.length > maxDaysPerWeek) {
+          // Remove the last worked day (heuristic: last day of week first)
+          const removeDay = daysWorked[daysWorked.length - 1];
+          const dayData = empWeek[removeDay];
+          if (dayData && !dayData.isManualOverride) {
+            dayData.isOff = true;
+            dayData.blocks = [];
+            resolved.push(`Cleared ${empId} day ${removeDay} (week ${weekStr}) to satisfy MAX_DAYS=${maxDaysPerWeek}`);
+          }
+          daysWorked = daysWorked.slice(0, -1);
+        }
+      }
+    }
+  }
+
+  // ─── Fix CONSECUTIVE_DAYS_OFF violations ─────────────────────────────────
+  // If employee has no consecutive days off, clear the last worked day to
+  // create a consecutive break.
+  for (const rule of activeSorted) {
+    if (rule.enforcementType !== 'CONSECUTIVE_DAYS_OFF') continue;
+    const { minConsecutiveDaysOff } = rule.parameters ?? {};
+    if (!minConsecutiveDaysOff) continue;
+
+    for (const weekStr of Object.keys(optimized)) {
+      const weekData = optimized[weekStr];
+      for (const [empId, empWeek] of Object.entries(weekData)) {
+        const worked = Array.from({ length: 7 }, (_, d) => {
+          const day = empWeek[d];
+          return day?.blocks?.some(b => b.type !== 'ApprovedOff') ?? false;
+        });
+
+        // Check max consecutive off streak
+        let maxOff = 0, cur = 0;
+        for (const w of worked) {
+          if (!w) { cur++; maxOff = Math.max(maxOff, cur); } else cur = 0;
+        }
+
+        if (maxOff < minConsecutiveDaysOff) {
+          // Find a day to clear that would extend an existing off streak
+          for (let d = 0; d < 7; d++) {
+            if (!worked[d]) continue;
+            const prevOff = d > 0 ? !worked[d - 1] : false;
+            const nextOff = d < 6 ? !worked[d + 1] : false;
+            if (prevOff || nextOff) {
+              const dayData = empWeek[d];
+              if (dayData && !dayData.isManualOverride) {
+                dayData.isOff = true;
+                dayData.blocks = [];
+                resolved.push(`Cleared ${empId} day ${d} (week ${weekStr}) to create consecutive days off`);
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // ─── Recheck remaining violations ────────────────────────────────────────
+  const remaining = checkViolations(activeSorted, optimized, employees, rotation, extras);
+  stillFail.push(...remaining);
 
   return {
-    optimizedSchedule: schedule,
-    resolved: [],
-    unresolved: violations,
+    optimizedSchedule: optimized,
+    resolved,
+    unresolved: stillFail,
   };
 }
 

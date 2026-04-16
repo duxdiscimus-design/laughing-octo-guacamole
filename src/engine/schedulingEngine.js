@@ -177,14 +177,22 @@ function sortByRolePriority(emps) {
 
 // ─── Rule helpers ─────────────────────────────────────────────────────────────
 
-function isRuleOn(activeRules, enforcement) {
+function isRuleOn(activeRules, enforcementType) {
   if (!activeRules) return false;
-  return activeRules.some(r => r.enforcement === enforcement && r.enabled !== false);
+  // Support both 'enforcementType' (standard) and legacy 'enforcement' field
+  return activeRules.some(r =>
+    (r.enforcementType === enforcementType || r.enforcement === enforcementType) &&
+    r.enabled !== false,
+  );
 }
 
-function getRuleParam(activeRules, enforcement, param, fallback) {
-  const rule = (activeRules || []).find(r => r.enforcement === enforcement && r.enabled !== false);
-  return rule?.params?.[param] ?? fallback;
+function getRuleParam(activeRules, enforcementType, param, fallback) {
+  const rule = (activeRules || []).find(r =>
+    (r.enforcementType === enforcementType || r.enforcement === enforcementType) &&
+    r.enabled !== false,
+  );
+  // Support both 'parameters' (standard) and legacy 'params' field
+  return rule?.parameters?.[param] ?? rule?.params?.[param] ?? fallback;
 }
 
 // ─── Main generateSchedule ────────────────────────────────────────────────────
@@ -218,7 +226,7 @@ export function generateSchedule(
     week[emp.id] = initWeekForEmployee(emp.id, existingSchedule);
   }
 
-  // ─── STEP 1: Block approved unavailability ────────────────────────────────
+  // ─── STEP 0A: Block approved unavailability ───────────────────────────────
   for (const emp of employees) {
     const avail = availability[emp.id] || {};
     const fullWeeks = avail.fullWeeks || [];
@@ -238,6 +246,71 @@ export function generateSchedule(
       }
     }
   }
+
+  // ─── STEP 0B: Assign scheduled days off based on target hours ─────────────
+  //
+  // Without this, every employee gets scheduled 7 days/week. We calculate
+  // how many days each person should work from their targetHours / shiftLength
+  // and mark remaining days as off (isOff = true, no ApprovedOff block).
+  //
+  // Off-day patterns are staggered by employee index to ensure store coverage
+  // on every day of the week.
+  //
+  // Leadership (SM/AM): always covers at least 1 leader per day.
+  // PT associates: work only 2-3 days per week.
+  //
+  {
+    // Off-day pattern pools — indices 0=Mon … 6=Sun
+    // Leadership: prefer weekday pairs so Sat+Sun always has coverage
+    const SM_AM_PATTERNS    = [[0,1],[1,2],[2,3],[3,4],[0,4],[1,3],[2,4]];
+    // Supervisors / FTC: mix of weekday and weekend days off
+    const SUP_FTC_PATTERNS  = [[0,1],[2,3],[4,5],[5,6],[0,6],[1,5],[2,6],[3,6],[0,5]];
+    // PT: mostly off, work 2-4 days
+    const PT_3DAY_PATTERNS  = [[0,1,2,3],[1,2,3,4],[2,3,4,5],[3,4,5,6],[0,1,5,6],[0,2,4,6],[1,3,5,6]];
+    const PT_2DAY_PATTERNS  = [[0,1,2,3,4],[1,2,3,4,5],[2,3,4,5,6],[0,1,2,5,6],[0,1,3,4,6]];
+
+    for (let ei = 0; ei < employees.length; ei++) {
+      const emp = employees[ei];
+
+      // How many days should this employee work?
+      const shiftLen   = emp.shiftLength || (emp.role === 'PT' ? 5 : 8);
+      const targetHrs  = emp.targetHours || (emp.role === 'PT' ? 12 : 40);
+      let workDays     = Math.round(targetHrs / shiftLen);
+
+      // Role-based hard limits
+      if (emp.role === 'SM')  workDays = Math.min(workDays, 5);
+      if (emp.role === 'AM')  workDays = Math.min(workDays, 5);
+      if (emp.role === 'SUP') workDays = Math.min(workDays, 6);
+      if (emp.role === 'FTC') workDays = Math.min(workDays, 6);
+      if (emp.role === 'PT')  workDays = Math.max(1, Math.min(4, workDays));
+      workDays = Math.max(1, Math.min(6, workDays));
+
+      const daysOff = 7 - workDays;
+      if (daysOff <= 0) continue;
+
+      // Pick the off-day pattern for this employee
+      let offDays;
+      if (emp.role === 'SM' || emp.role === 'AM') {
+        const pattern = SM_AM_PATTERNS[ei % SM_AM_PATTERNS.length];
+        offDays = new Set(pattern.slice(0, daysOff));
+      } else if (emp.role === 'SUP' || emp.role === 'FTC') {
+        const pattern = SUP_FTC_PATTERNS[ei % SUP_FTC_PATTERNS.length];
+        offDays = new Set(pattern.slice(0, daysOff));
+      } else {
+        // PT
+        const pool = workDays <= 2 ? PT_2DAY_PATTERNS : PT_3DAY_PATTERNS;
+        offDays = new Set(pool[ei % pool.length].slice(0, daysOff));
+      }
+
+      for (const d of offDays) {
+        const dayData = week[emp.id]?.[d];
+        if (!dayData || dayData.isManualOverride || dayData.isApprovedOff) continue;
+        dayData.isOff = true;
+        dayData.blocks = [];
+      }
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   // Helpers used throughout
   const isWorking = (empId, d) =>
@@ -264,25 +337,32 @@ export function generateSchedule(
     [0, 1, 2, 3, 4, 5, 6].filter(d => isWorking(empId, d));
 
   // ─── Determine each employee's working window ─────────────────────────────
-  // We respect shiftLength; typical start near store open (+/- 30 min)
+  // We respect shiftLength; stagger start times per role + per-employee offset
+  // so multiple employees of the same role don't all arrive at the same time.
   const empShiftWindow = {}; // empId -> { [dayIndex]: { start, end } }
-  for (const emp of employees) {
+  for (let ei = 0; ei < employees.length; ei++) {
+    const emp = employees[ei];
     empShiftWindow[emp.id] = {};
-    const shiftMins = (emp.shiftLength || 8) * 60;
-    const lunchMins = emp.role === 'PT' ? 0 : (emp.lunchMinutes || 30);
-    const totalWindow = shiftMins; // shift length IS the total window
+    const shiftMins  = (emp.shiftLength || 8) * 60;
+
+    // Per-role base offset from store open
+    const roleOffset = emp.role === 'SM'  ?   0 :
+                       emp.role === 'AM'  ?  30 :
+                       emp.role === 'SUP' ?  30 :
+                       emp.role === 'FTC' ?  60 :
+                       /* PT */             120;
+
+    // Per-employee additional offset (0 or 30 min) to create variety
+    // e.g. PT associate 1 → 2:00h after open, PT associate 2 → 2:30h after open
+    const roleGroup = employees.filter(e => e.role === emp.role);
+    const posInGroup = roleGroup.indexOf(emp);
+    const extraOffset = (posInGroup % 2) * 30;
 
     for (let d = 0; d < 7; d++) {
       if (!isWorking(emp.id, d)) continue;
       const { open, close } = storeHours(d);
-      let shiftStart = open;
-
-      // Stagger based on role so we don't start everyone at exactly 7:30
-      if (emp.role === 'AM' || emp.role === 'SUP') shiftStart = open + 30;
-      if (emp.role === 'FTC') shiftStart = open + 60;
-      if (emp.role === 'PT') shiftStart = open + 120; // flexible, afternoon
-
-      const shiftEnd = Math.min(shiftStart + totalWindow, close);
+      const shiftStart = Math.min(open + roleOffset + extraOffset, close - shiftMins);
+      const shiftEnd   = Math.min(shiftStart + shiftMins, close);
       empShiftWindow[emp.id][d] = { start: shiftStart, end: shiftEnd };
     }
   }
@@ -438,10 +518,11 @@ export function generateSchedule(
 
     for (const d of daysForPlanning) {
       if (planningLeft <= 0) break;
-      const { close } = storeHours(d);
-      const noGoAfter = close - 60; // not in last hour of store
+      const sw = empShiftWindow[emp.id]?.[d];
+      const winStart = sw ? sw.start : storeHours(d).open;
+      const winEnd   = sw ? (sw.end - 60) : (storeHours(d).close - 60); // not last hour
       const blocks = empBlocks(emp.id, d);
-      const slots = getFreeSlots(blocks, storeHours(d).open, noGoAfter);
+      const slots = getFreeSlots(blocks, winStart, winEnd);
       let toAssign = Math.min(perDay, planningLeft);
 
       for (const slot of slots) {
@@ -470,10 +551,11 @@ export function generateSchedule(
 
     for (const d of wDays) {
       if (planningLeft <= 0) break;
-      const { close } = storeHours(d);
-      const noGoAfter = close - 60;
+      const sw = empShiftWindow[emp.id]?.[d];
+      const winStart = sw ? sw.start : storeHours(d).open;
+      const winEnd   = sw ? (sw.end - 60) : (storeHours(d).close - 60);
       const blocks = empBlocks(emp.id, d);
-      const slots = getFreeSlots(blocks, storeHours(d).open, noGoAfter);
+      const slots = getFreeSlots(blocks, winStart, winEnd);
       let toAssign = Math.min(perDay, planningLeft);
 
       for (const slot of slots) {
@@ -500,9 +582,11 @@ export function generateSchedule(
 
     for (const d of wDays) {
       if (floorLeft <= 0) break;
-      const { open, close } = storeHours(d);
+      const sw = empShiftWindow[emp.id]?.[d];
+      const winStart = sw ? sw.start : storeHours(d).open;
+      const winEnd   = sw ? sw.end : storeHours(d).close;
       const blocks = empBlocks(emp.id, d);
-      const slots = getFreeSlots(blocks, open, close);
+      const slots = getFreeSlots(blocks, winStart, winEnd);
       let toAssign = Math.min(perDay, floorLeft);
 
       for (const slot of slots) {
@@ -530,13 +614,15 @@ export function generateSchedule(
     addBlock(emp.id, mondayIndex, block);
   }
 
-  // ─── STEP 9: Fill remaining time with Floor blocks ────────────────────────
+  // ─── STEP 9: Fill remaining time with Floor blocks (within shift window) ────
   for (const emp of employees) {
     for (let d = 0; d < 7; d++) {
       if (!isWorking(emp.id, d)) continue;
-      const { open, close } = storeHours(d);
+      // Use the employee's personal shift window, not the full store hours
+      const sw = empShiftWindow[emp.id]?.[d];
+      if (!sw) continue;
       const blocks = empBlocks(emp.id, d);
-      const slots = getFreeSlots(blocks, open, close);
+      const slots = getFreeSlots(blocks, sw.start, sw.end);
       for (const slot of slots) {
         if (slot.end - slot.start < 15) continue; // ignore tiny gaps
         const block = makeBlock('Floor', slot.start, slot.end);
