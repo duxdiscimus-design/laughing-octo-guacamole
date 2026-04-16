@@ -158,8 +158,10 @@ export default function AIAssistant() {
 
       const weekData = getWeekSchedule(weekIndex);
       const existing = weekData[emp.id]?.[dayIndex] ?? { blocks: [] };
-      const sMin = startTime.split(':').map(Number).reduce((h, m) => h * 60 + m, 0);
-      const eMin = endTime.split(':').map(Number).reduce((h, m) => h * 60 + m, 0);
+      const [sh, sm] = startTime.split(':').map(Number);
+      const [eh, em] = endTime.split(':').map(Number);
+      const sMin = sh * 60 + sm;
+      const eMin = eh * 60 + em;
       const newBlock = {
         id: `ai_${Date.now()}`,
         type: 'Floor',
