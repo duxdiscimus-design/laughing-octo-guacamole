@@ -188,9 +188,9 @@ function buildContext(employees, scheduleData, rules, requests, laborBudget, set
         const types = [...new Set((day.blocks || [])
           .filter(b => b.type !== 'Lunch')
           .map(b => b.type))].join('+') || 'shift';
-        const s = day.startTime ?? day.blocks?.[0]?.startTime ?? '?';
-        const e2 = day.endTime   ?? day.blocks?.[day.blocks.length - 1]?.endTime ?? '?';
-        return `${dayName}:${s}-${e2}(${types})`;
+        const s    = day.startTime ?? day.blocks?.[0]?.startTime ?? '?';
+        const dayEnd = day.endTime ?? day.blocks?.[day.blocks.length - 1]?.endTime ?? '?';
+        return `${dayName}:${s}-${dayEnd}(${types})`;
       });
       lines.push(`    ${emp.name}: ${days.join(' | ')}`);
     }
@@ -310,12 +310,11 @@ export default function AIAssistant() {
       const { empName, dayIndex, weekIndex = currentWeek, blockType } = params;
       const emp = findEmployee(employees, empName);
       if (!emp) return `Employee "${empName}" not found.`;
+      // A blockType is required to remove anything; without it there is nothing to remove.
+      if (!blockType) return 'Please specify which block type to remove (e.g. "LOD", "Cashier").';
       const weekData = getWeekSchedule(weekIndex);
       const existing = weekData[emp.id]?.[dayIndex] ?? { blocks: [] };
-      // Keep all blocks when no type given; remove matching type when given
-      const filtered = (existing.blocks || []).filter(b =>
-        blockType ? b.type !== blockType : true,
-      );
+      const filtered = (existing.blocks || []).filter(b => b.type !== blockType);
       setDaySchedule(weekIndex, emp.id, dayIndex, { ...existing, blocks: filtered, isManualOverride: true });
       return message || `Removed ${blockType ? blockType + ' blocks' : 'blocks'} for ${emp.name} on ${DAYS_OF_WEEK[dayIndex]} (wk ${weekIndex + 1}).`;
     }
