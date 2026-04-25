@@ -136,6 +136,30 @@ export default function Settings() {
         </div>
       </section>
 
+      {/* AI Assistant */}
+      <section className="p-5 rounded-xl space-y-4" style={{ background: '#1a1a1f', border: '1px solid #2a2a32' }}>
+        <h3 className="font-semibold text-lg">AI Assistant (Gemini)</h3>
+        <p className="text-sm" style={{ color: '#6b7280' }}>
+          Enter your Google Gemini API key to enable the AI assistant. The assistant can read and edit the
+          schedule using natural language commands. Get a free key at{' '}
+          <span style={{ color: '#f5c842' }}>aistudio.google.com</span>.
+        </p>
+        <div>
+          <label className="block text-sm mb-1" style={{ color: '#6b7280' }}>Gemini API Key</label>
+          <input
+            type="password"
+            value={form.geminiApiKey ?? ''}
+            onChange={e => update('geminiApiKey', e.target.value)}
+            placeholder="AIza..."
+            className="w-full px-3 py-2 rounded-lg text-sm"
+            style={{ background: '#0f0f11', border: '1px solid #2a2a32', color: '#e8e8ee', minHeight: 44 }}
+          />
+        </div>
+        {form.geminiApiKey && (
+          <p className="text-xs" style={{ color: '#22c55e' }}>✓ API key configured — AI assistant is enabled</p>
+        )}
+      </section>
+
       <button onClick={handleSave}
         className="px-6 py-3 rounded-lg font-semibold transition-opacity hover:opacity-80"
         style={{ background: '#f5c842', color: '#0f0f11', minHeight: 44 }}>

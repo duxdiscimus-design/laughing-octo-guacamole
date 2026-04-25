@@ -33,6 +33,7 @@ export function AppStateProvider({ children }) {
     storeClose: '20:30',
     storeName: 'Harbor Freight Tools',
     storeNumber: '',
+    geminiApiKey: '',
   });
 
   const value = {

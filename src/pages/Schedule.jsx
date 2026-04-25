@@ -646,6 +646,152 @@ function EditBlockModal({ block, empId, dayIndex, weekIndex, onSave, onDelete, o
   );
 }
 
+// ─── DayShiftBreakdown ────────────────────────────────────────────────────────
+// Full shift + task breakdown for the selected day, shown below the timeline.
+function DayShiftBreakdown({ weekData, employees }) {
+  const [expanded, setExpanded] = useState({});
+  const toggleEmp = (id) => setExpanded(e => ({ ...e, [id]: !e[id] }));
+
+  const TASK_DESC = {
+    LOD:         'Leader on Duty – supervise floor, handle escalations',
+    Cashier:     'Operate register, process transactions, assist customers at checkout',
+    Planning:    'Office planning, scheduling, ordering, administrative tasks',
+    ConfCall:    'Company-wide conference call / store team meeting',
+    Floor:       'Floor coverage – assist customers, restock, zone maintenance',
+    Open:        'Opening procedures – doors, registers, safety walkthrough',
+    Close:       'Closing procedures – registers, locks, end-of-day walkthrough',
+    Lunch:       'Unpaid meal break',
+    CashOffice:  'Cash office – count tills, process deposits, reconcile',
+    Custom:      'Custom task as assigned',
+    ApprovedOff: 'Approved time off',
+  };
+
+  const workerRows = employees
+    .map(emp => ({ emp, day: weekData[emp.id] }))
+    .filter(({ day }) => day && !day.isOff && !day.isApprovedOff && day.blocks?.length > 0);
+
+  if (!workerRows.length) {
+    return (
+      <div className="mt-4 p-4 rounded-xl text-sm text-center" style={{ color: '#4b4b58', backgroundColor: '#1a1a1f', border: '1px solid #2a2a32' }}>
+        No scheduled employees for this day.
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 space-y-2">
+      <div className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: '#6b7280' }}>
+        Shift Breakdown — {workerRows.length} employee{workerRows.length !== 1 ? 's' : ''} on duty
+      </div>
+
+      {workerRows.map(({ emp, day }) => {
+        const isExp    = expanded[emp.id];
+        const hours    = getDayHours({ blocks: day.blocks });
+        const bounds   = getDayBounds({ blocks: day.blocks });
+        const workBlocks = (day.blocks || []).filter(b => b.type !== 'Lunch');
+        const lunchBlk = (day.blocks || []).find(b => b.type === 'Lunch');
+
+        return (
+          <div
+            key={emp.id}
+            className="rounded-xl overflow-hidden"
+            style={{ backgroundColor: '#1a1a1f', border: '1px solid #2a2a32' }}
+          >
+            {/* Row header */}
+            <button
+              className="w-full flex items-center gap-3 px-4 py-3 text-left"
+              onClick={() => toggleEmp(emp.id)}
+            >
+              {/* Role badge */}
+              <span
+                className="text-xs font-bold px-2 py-0.5 rounded flex-shrink-0"
+                style={{ backgroundColor: '#2a2a32', color: '#f5c842' }}
+              >
+                {emp.role}
+              </span>
+              {/* Name */}
+              <span className="text-sm font-medium flex-1" style={{ color: '#e8e8ee' }}>{emp.name}</span>
+              {/* Time range */}
+              {bounds && (
+                <span className="text-xs font-mono" style={{ color: '#a0a0b0' }}>
+                  {fmtTimeShort(bounds.start)} – {fmtTimeShort(bounds.end)}
+                </span>
+              )}
+              {/* Hours */}
+              <span className="text-xs ml-2" style={{ color: '#6b7280' }}>{hours.toFixed(1)}h</span>
+              {/* Expand */}
+              <ChevronDown
+                size={14}
+                style={{ color: '#6b7280', transform: isExp ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}
+              />
+            </button>
+
+            {/* Expanded detail */}
+            {isExp && (
+              <div className="px-4 pb-4 space-y-2 border-t" style={{ borderColor: '#2a2a32' }}>
+                {/* Block list */}
+                <div className="pt-3 space-y-1.5">
+                  {workBlocks.map((block, i) => {
+                    const color = TASK_COLORS[block.type] || '#6b7280';
+                    const dur   = block.durationHours?.toFixed(1) ?? ((timeToMin(block.endTime) - timeToMin(block.startTime)) / 60).toFixed(1);
+                    return (
+                      <div key={i} className="flex items-start gap-3">
+                        <div
+                          className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
+                          style={{ backgroundColor: color }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-semibold" style={{ color }}>{block.type}</span>
+                            <span className="text-xs font-mono" style={{ color: '#6b7280' }}>
+                              {fmtTimeShort(block.startTime)} – {fmtTimeShort(block.endTime)} ({dur}h)
+                            </span>
+                          </div>
+                          {TASK_DESC[block.type] && (
+                            <div className="text-xs mt-0.5" style={{ color: '#4b4b58' }}>
+                              {TASK_DESC[block.type]}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {lunchBlk && (
+                    <div className="flex items-start gap-3">
+                      <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: '#6b7280' }} />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold" style={{ color: '#6b7280' }}>Lunch</span>
+                          <span className="text-xs font-mono" style={{ color: '#4b4b58' }}>
+                            {fmtTimeShort(lunchBlk.startTime)} – {fmtTimeShort(lunchBlk.endTime)}
+                          </span>
+                        </div>
+                        <div className="text-xs mt-0.5" style={{ color: '#4b4b58' }}>
+                          {TASK_DESC['Lunch']}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Summary footer */}
+                <div
+                  className="flex gap-4 pt-2 mt-1 text-xs flex-wrap"
+                  style={{ borderTop: '1px solid #2a2a32', color: '#6b7280' }}
+                >
+                  <span>Total on-duty: <strong style={{ color: '#a0a0b0' }}>{hours.toFixed(1)}h</strong></span>
+                  {lunchBlk && <span>Lunch: <strong style={{ color: '#a0a0b0' }}>{((timeToMin(lunchBlk.endTime) - timeToMin(lunchBlk.startTime)) / 60).toFixed(1)}h</strong></span>}
+                  <span>Blocks: <strong style={{ color: '#a0a0b0' }}>{workBlocks.length}</strong></span>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Main Schedule component ──────────────────────────────────────────────────
 export default function Schedule() {
   const { employees, rules, rotationStart, settings } = useAppState();
@@ -721,7 +867,7 @@ export default function Schedule() {
     setGenerating(true);
     try {
       const activeRules = rules.filter((r) => r.isOn);
-      generateWeekSchedule(selectedWeek, employees, {}, activeRules, rotationStart);
+      generateWeekSchedule(selectedWeek, employees, {}, activeRules, { startDate: rotationStart });
     } finally {
       setGenerating(false);
     }
@@ -732,9 +878,16 @@ export default function Schedule() {
     setOptimizing(true);
     try {
       const activeRules = rules.filter((r) => r.isOn);
-      autoOptimize(weekData, activeRules, employees, rotationStart, { settings });
-      // Regenerate after optimize pass
-      generateWeekSchedule(selectedWeek, employees, {}, activeRules, rotationStart);
+      // 1. Apply rule-based fixups to the current schedule
+      const { optimizedSchedule } = autoOptimize(
+        { [selectedWeek]: weekData },
+        activeRules,
+        employees,
+        { startDate: rotationStart },
+        { settings },
+      );
+      // 2. Regenerate the week fresh with the same rules applied in the engine
+      generateWeekSchedule(selectedWeek, employees, {}, activeRules, { startDate: rotationStart });
     } finally {
       setOptimizing(false);
     }
@@ -893,6 +1046,16 @@ export default function Schedule() {
             />
           )}
         </div>
+
+        {/* ── Day Shift Breakdown (day view only) ──────────────────── */}
+        {view === 'day' && !printMode && (
+          <DayShiftBreakdown
+            weekData={Object.fromEntries(
+              employees.map(emp => [emp.id, weekData[emp.id]?.[selectedDay]]),
+            )}
+            employees={employees}
+          />
+        )}
 
         {/* ── Legend ─────────────────────────────────────────────────── */}
         {!printMode && (
